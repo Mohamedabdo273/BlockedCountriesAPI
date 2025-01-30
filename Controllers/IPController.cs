@@ -105,7 +105,7 @@ namespace BlockedCountriesAPI.Controllers
             if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
             {
                 var forwardedIp = HttpContext.Request.Headers["X-Forwarded-For"].ToString();
-                ipAddress = forwardedIp.Split(',')[0].Trim(); 
+                ipAddress = forwardedIp.Split(',')[0].Trim();
             }
 
             return ipAddress;

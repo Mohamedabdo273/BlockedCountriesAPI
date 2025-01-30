@@ -87,7 +87,7 @@ namespace BlockedCountriesAPI.Services
             }
 
             return query
-                .OrderBy(c => c.CountryCode) // Order by CountryCode for consistent results
+                .OrderBy(c => c.CountryCode)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();

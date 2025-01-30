@@ -24,11 +24,20 @@ namespace BlockedCountriesAPI.Repositories
 
         public void Add(T entity)
         {
-            if (_dataStore.Any(e => GetId(e).Equals(GetId(entity))))
-                throw new InvalidOperationException("Entity with the same ID already exists.");
-
-            _dataStore.Add(entity);
+            var existingEntity = _dataStore.FirstOrDefault(e => GetId(e).Equals(GetId(entity)));
+            if (existingEntity != null)
+            {
+                // Update the existing entity
+                _dataStore.Remove(existingEntity);
+                _dataStore.Add(entity);
+            }
+            else
+            {
+                // No existing entity, so add the new entity
+                _dataStore.Add(entity);
+            }
         }
+
 
         public void Update(T entity)
         {

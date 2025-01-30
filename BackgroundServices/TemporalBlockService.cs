@@ -24,8 +24,8 @@ namespace BlockedCountriesAPI.BackgroundServices
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Delay the background task to run every 5 minutes
-                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                // Delay the background task to run every 1 minutes
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
                 RemoveExpiredBlocks();
             }
         }
