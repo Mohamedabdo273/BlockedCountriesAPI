@@ -15,15 +15,19 @@ namespace BlockedCountriesAPI
             var builder = WebApplication.CreateBuilder(args);
 
             // Register repositories
-            builder.Services.AddScoped<IBlockedCountryRepository, BlockedCountryRepository>();
+            builder.Services.AddHttpClient<IGeoLocationService, GeoLocationService>();
+            builder.Services.AddSingleton<IBlockedCountryRepository, BlockedCountryRepository>();
 
             // Register services
-            builder.Services.AddScoped<IGeoLocationService, GeoLocationService>();
-            builder.Services.AddScoped<ILogService, LogService>();
-            builder.Services.AddScoped<ICountryBlockService, CountryBlockService>();
+            builder.Services.AddSingleton<IGeoLocationService, GeoLocationService>();
+            builder.Services.AddSingleton<ILogService, LogService>();
+            builder.Services.AddSingleton<ICountryBlockService, CountryBlockService>();
 
             // Register background services
             builder.Services.AddHostedService<TemporalBlockService>();
+
+            // Register HttpClient for GeoLocationService
+            builder.Services.AddHttpClient<IGeoLocationService, GeoLocationService>();
 
             // Add controllers
             builder.Services.AddControllers();

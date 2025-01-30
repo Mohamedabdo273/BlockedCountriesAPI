@@ -5,8 +5,7 @@ namespace BlockedCountriesAPI.Models
     public class BlockCountryRequest
     {
         [Required]
-        [StringLength(2)] // Assuming country codes are 2 characters long
+        [StringLength(2, MinimumLength = 2, ErrorMessage = "Country code must be exactly 2 characters.")]
         public string CountryCode { get; set; }
     }
-
 }

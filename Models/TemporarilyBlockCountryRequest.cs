@@ -9,7 +9,7 @@ namespace BlockedCountriesAPI.Models
         public string CountryCode { get; set; }
 
         [Required]
-        [Range(1, 1440)]
+        [Range(1, 1440, ErrorMessage = "Duration must be between 1 and 1440 minutes.")]
         public int DurationMinutes { get; set; }
     }
 }

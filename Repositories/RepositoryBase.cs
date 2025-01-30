@@ -1,55 +1,51 @@
-﻿using System.Collections.Generic;
+﻿using System.Linq.Expressions;
+using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using BlockedCountriesAPI.Repositories.IRepository;
 
 namespace BlockedCountriesAPI.Repositories
 {
     public abstract class RepositoryBase<T> : IRepository<T>
     {
-        protected List<T> _dataStore;
+        protected readonly List<T> _dataStore = new List<T>();
 
-        public RepositoryBase()
-        {
-            _dataStore = new List<T>();
-        }
-
-        public virtual IEnumerable<T> GetAll(Expression<Func<T, bool>>? expression = null)
+        public IEnumerable<T> GetAll(Expression<Func<T, bool>>? expression = null)
         {
             var query = _dataStore.AsQueryable();
-            if (expression != null)
-            {
-                query = query.Where(expression);
-            }
-            return query.ToList();
+            return expression != null ? query.Where(expression).ToList() : query.ToList();
         }
 
-        public virtual T GetById(Expression<Func<T, bool>> expression)
+        public T GetById(Expression<Func<T, bool>> expression)
         {
-            var query = _dataStore.AsQueryable();
-            return query.FirstOrDefault(expression);
+            return _dataStore.AsQueryable().FirstOrDefault(expression)
+                   ?? throw new KeyNotFoundException("Entity not found.");
         }
 
-        public virtual void Add(T entity)
+
+        public void Add(T entity)
         {
+            if (_dataStore.Any(e => GetId(e).Equals(GetId(entity))))
+                throw new InvalidOperationException("Entity with the same ID already exists.");
+
             _dataStore.Add(entity);
         }
 
-        public virtual void Update(T entity)
+        public void Update(T entity)
         {
-            var existing = GetById(e => GetId(e).Equals(GetId(entity)));
-            if (existing != null)
-            {
-                _dataStore.Remove(existing);
-                _dataStore.Add(entity);
-            }
+            var existing = _dataStore.FirstOrDefault(e => GetId(e).Equals(GetId(entity)));
+            if (existing == null)
+                throw new KeyNotFoundException("Entity not found for update.");
+
+            _dataStore.Remove(existing);
+            _dataStore.Add(entity);
         }
 
-        public virtual void Delete(T entity)
+        public void Delete(T entity)
         {
-            _dataStore.Remove(entity);
+            if (!_dataStore.Remove(entity))
+                throw new KeyNotFoundException("Entity not found for deletion.");
         }
 
-        protected abstract object GetId(T entity); // يجب أن يتم تنفيذها في الفئات الفرعية
+        protected abstract object GetId(T entity);
     }
 }

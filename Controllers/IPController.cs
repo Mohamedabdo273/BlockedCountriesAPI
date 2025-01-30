@@ -1,7 +1,9 @@
 ﻿using BlockedCountriesAPI.Models;
-using BlockedCountriesAPI.Services;
+using BlockedCountriesAPI.Services.IServices;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace BlockedCountriesAPI.Controllers
@@ -10,36 +12,37 @@ namespace BlockedCountriesAPI.Controllers
     [ApiController]
     public class IPController : ControllerBase
     {
-        private readonly GeoLocationService _geoLocationService;
-        private readonly LogService _logService;
+        private readonly IGeoLocationService _geoLocationService;
+        private readonly ILogService _logService;
+        private readonly ICountryBlockService _countryBlockService;
 
-        // Inject services in the constructor
-        public IPController(GeoLocationService geoLocationService, LogService logService)
+        public IPController(IGeoLocationService geoLocationService, ILogService logService, ICountryBlockService countryBlockService)
         {
             _geoLocationService = geoLocationService;
             _logService = logService;
+            _countryBlockService = countryBlockService;
         }
 
-        // Endpoint to check if an IP is blocked
-        [HttpGet("check/{ip}")]
-        public async Task<IActionResult> CheckIP(string ip)
+        [HttpGet("lookup")]
+        public async Task<IActionResult> LookupIP([FromQuery] string ipAddress = null)
         {
-            if (string.IsNullOrWhiteSpace(ip))
-                return BadRequest("IP address cannot be null or empty.");
-
+            
+            if (string.IsNullOrEmpty(ipAddress))
+            {
+                ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+                if (ipAddress == "::1")
+                {
+                    ipAddress = "127.0.0.1";
+                }
+            }          
+            // Validate IP address
+            if (string.IsNullOrWhiteSpace(ipAddress) || !IPAddress.TryParse(ipAddress, out _))
+            {
+                return BadRequest("Invalid IP address.");
+            }
             try
             {
-                var geoLocationResponse = await _geoLocationService.GetGeoLocationAsync(ip);
-
-                // Add log entry for this IP attempt
-                var logEntry = new LogEntry
-                {
-                    IpAddress = ip,
-                    AttemptTime = DateTime.UtcNow,
-                    CountryCode = geoLocationResponse.CountryCode // Assuming the API returns the country code
-                };
-                _logService.AddLogEntry(logEntry);
-
+                var geoLocationResponse = await _geoLocationService.GetGeoLocationAsync(ipAddress);
                 return Ok(geoLocationResponse);
             }
             catch (Exception ex)
@@ -47,39 +50,65 @@ namespace BlockedCountriesAPI.Controllers
                 return BadRequest($"Error fetching geolocation details: {ex.Message}");
             }
         }
-
-        // Endpoint to log an IP attempt manually (if needed)
-        [HttpPost("log")]
-        public IActionResult LogIPAttempt([FromBody] LogEntry request)
+        [HttpGet("check-block")]
+        public async Task<IActionResult> CheckBlockedIP()
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.IpAddress))
-                return BadRequest("IP address is required.");
+            string ipAddress = GetCallerIpAddress();
+
+            if (string.IsNullOrWhiteSpace(ipAddress))
+            {
+                return BadRequest("Unable to fetch IP address.");
+            }
 
             try
             {
-                request.AttemptTime = DateTime.UtcNow; // Ensure the log time is set
-                _logService.AddLogEntry(request);
-                return Ok($"Attempt logged for IP {request.IpAddress}.");
+                var geoLocationResponse = await _geoLocationService.GetGeoLocationAsync(ipAddress);
+                bool isBlocked = _countryBlockService.IsCountryBlocked(geoLocationResponse.CountryCode);
+
+                var logEntry = new LogEntry
+                {
+                    IpAddress = ipAddress,
+                    AttemptTime = DateTime.UtcNow,
+                    CountryCode = geoLocationResponse.CountryCode,
+                    BlockedStatus = isBlocked,
+                    UserAgent = Request.Headers["User-Agent"]
+                };
+
+                _logService.AddLogEntry(logEntry);
+
+                return Ok(new { IsBlocked = isBlocked, GeoLocation = geoLocationResponse });
             }
-            catch (ArgumentNullException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest($"Error: {ex.Message}");
             }
         }
 
-        // Endpoint to get logs with pagination
-        [HttpGet("logs")]
-        public IActionResult GetLogs([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        [HttpGet("logs/blocked-attempts")]
+        public IActionResult GetBlockedAttempts([FromQuery] int page = 1)
         {
             try
             {
-                var logs = _logService.GetLogEntries(page, pageSize);
-                return Ok(logs);
+                var blockedLogs = _logService.GetLogEntries(page).Where(log => log.BlockedStatus).ToList();
+                return Ok(blockedLogs);
             }
             catch (ArgumentException ex)
             {
                 return BadRequest(ex.Message);
             }
+        }
+
+        private string GetCallerIpAddress()
+        {
+            string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
+            {
+                var forwardedIp = HttpContext.Request.Headers["X-Forwarded-For"].ToString();
+                ipAddress = forwardedIp.Split(',')[0].Trim(); 
+            }
+
+            return ipAddress;
         }
     }
 }

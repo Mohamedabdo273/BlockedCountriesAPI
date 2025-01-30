@@ -1,6 +1,7 @@
 ﻿using BlockedCountriesAPI.BackgroundServices;
 using BlockedCountriesAPI.Models;
 using BlockedCountriesAPI.Services;
+using BlockedCountriesAPI.Services.IServices;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Concurrent;
@@ -12,13 +13,13 @@ namespace BlockedCountriesAPI.Controllers
     [ApiController]
     public class CountryController : ControllerBase
     {
-        private readonly CountryBlockService _countryBlockService;
+        private readonly ICountryBlockService _countryBlockService;
 
         // In-memory store for temporarily blocked countries
         private static ConcurrentDictionary<string, TemporalBlock> temporalBlocks = new ConcurrentDictionary<string, TemporalBlock>();
 
         // Inject the CountryBlockService in the constructor
-        public CountryController(CountryBlockService countryBlockService)
+        public CountryController(ICountryBlockService countryBlockService)
         {
             _countryBlockService = countryBlockService;
         }
@@ -69,11 +70,11 @@ namespace BlockedCountriesAPI.Controllers
 
         // Endpoint to get blocked countries with pagination
         [HttpGet("blockedcountries")]
-        public IActionResult GetBlockedCountries([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string searchTerm = null)
+        public IActionResult GetBlockedCountries([FromQuery] int page = 1, [FromQuery] string searchTerm = null)
         {
             try
             {
-                var countries = _countryBlockService.GetBlockedCountries(page, pageSize, searchTerm);
+                var countries = _countryBlockService.GetBlockedCountries(page, searchTerm);
                 return Ok(countries);
             }
             catch (ArgumentException ex)
@@ -103,12 +104,12 @@ namespace BlockedCountriesAPI.Controllers
 
             // Add country to the in-memory store with expiration time
             var expiryTime = DateTime.UtcNow.AddMinutes(request.DurationMinutes);
-            temporalBlocks[request.CountryCode] = new TemporalBlock
+            _countryBlockService.TemporarilyBlockCountry(new TemporarilyBlockCountryRequest()
             {
-                CountryCode = request.CountryCode,
-                ExpiryTime = expiryTime
-            };
-
+                CountryCode= request.CountryCode,
+                DurationMinutes=request.DurationMinutes
+            });
+            
             return Ok($"Country {request.CountryCode} has been temporarily blocked for {request.DurationMinutes} minutes.");
         }
 
