@@ -52,8 +52,8 @@ namespace BlockedCountriesAPI.Services
                 var geoLocationResponse = new GeoLocationResponse
                 {
                     IP = ipAddress,
-                    CountryCode = apiResponse.continent_code ?? apiResponse.country_code,                 
-                    CountryName = apiResponse.continent_name ?? apiResponse.country_name,
+                    CountryCode =  apiResponse.country_code2,                 
+                    CountryName =  apiResponse.country_name,
                     ISP = apiResponse.isp
                 };
 
