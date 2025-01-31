@@ -5,6 +5,7 @@ using BlockedCountriesAPI.Services.IServices;
 using BlockedCountriesAPI.BackgroundServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using BlockedCountriesAPI.UnitOFWork;
 
 namespace BlockedCountriesAPI
 {
@@ -22,7 +23,7 @@ namespace BlockedCountriesAPI
             builder.Services.AddSingleton<IGeoLocationService, GeoLocationService>();
             builder.Services.AddSingleton<ILogService, LogService>();
             builder.Services.AddSingleton<ICountryBlockService, CountryBlockService>();
-
+            builder.Services.AddSingleton<IUnitOfWork, UnitOfWork>();
             // Register background services
             builder.Services.AddHostedService<TemporalBlockService>();
 

@@ -1,6 +1,6 @@
 ﻿using BlockedCountriesAPI.Models;
-using BlockedCountriesAPI.Repositories.IRepository;
 using BlockedCountriesAPI.Services.IServices;
+using BlockedCountriesAPI.UnitOFWork;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -10,13 +10,13 @@ namespace BlockedCountriesAPI.Services
 {
     public class CountryBlockService : ICountryBlockService
     {
-        private readonly IBlockedCountryRepository _blockedCountryRepository;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogService _logService;
         private readonly ILogger<CountryBlockService> _logger;
 
-        public CountryBlockService(IBlockedCountryRepository blockedCountryRepository, ILogService logService, ILogger<CountryBlockService> logger)
+        public CountryBlockService(IUnitOfWork unitOfWork, ILogService logService, ILogger<CountryBlockService> logger)
         {
-            _blockedCountryRepository = blockedCountryRepository;
+            _unitOfWork = unitOfWork;
             _logService = logService;
             _logger = logger;
         }
@@ -28,7 +28,7 @@ namespace BlockedCountriesAPI.Services
 
             try
             {
-                var existingBlock = _blockedCountryRepository.GetByCountryCode(countryCode);
+                var existingBlock = _unitOfWork.blockedCountryRepository.GetByCountryCode(countryCode);
                 if (existingBlock != null)
                 {
                     _logger.LogWarning($"Country {countryCode} is already blocked.");
@@ -40,7 +40,7 @@ namespace BlockedCountriesAPI.Services
                 // Country is not found, so we can add it
             }
 
-            _blockedCountryRepository.Add(new BlockedCountry
+            _unitOfWork.blockedCountryRepository.Add(new BlockedCountry
             {
                 CountryCode = countryCode,
                 BlockDate = DateTime.UtcNow,
@@ -56,33 +56,31 @@ namespace BlockedCountriesAPI.Services
             if (string.IsNullOrWhiteSpace(countryCode))
                 throw new ArgumentException("Country code cannot be null or empty.");
 
-            var blockedCountry = _blockedCountryRepository.GetByCountryCode(countryCode);
+            var blockedCountry = _unitOfWork.blockedCountryRepository.GetByCountryCode(countryCode);
             if (blockedCountry == null)
             {
                 _logger.LogWarning($"Country {countryCode} is not blocked.");
                 return false;
             }
-            
-            // Remove the blocked country
-            _blockedCountryRepository.Delete(blockedCountry);
+
+            _unitOfWork.blockedCountryRepository.Delete(blockedCountry);
             _logger.LogInformation($"Country {countryCode} has been unblocked.");
             return true;
         }
+
         public IEnumerable<BlockedCountry> GetBlockedCountries(int page, string searchTerm = null)
         {
             int pageSize = 10;
-            if (page <= 0 )
+            if (page <= 0)
                 throw new ArgumentException("Page must be greater than zero.");
 
-            var query = _blockedCountryRepository.GetAll();
+            var query = _unitOfWork.blockedCountryRepository.GetAll();
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                
                 query = query.Where(c =>
                     c.CountryCode.Contains(searchTerm) ||
                     (c.CountryName?.Contains(searchTerm) == true)
-
                 );
             }
 
@@ -92,6 +90,7 @@ namespace BlockedCountriesAPI.Services
                 .Take(pageSize)
                 .ToList();
         }
+
         public bool IsCountryBlocked(string countryCode)
         {
             if (string.IsNullOrWhiteSpace(countryCode))
@@ -99,14 +98,13 @@ namespace BlockedCountriesAPI.Services
 
             try
             {
-                var blockedCountry = _blockedCountryRepository.GetByCountryCode(countryCode);
+                var blockedCountry = _unitOfWork.blockedCountryRepository.GetByCountryCode(countryCode);
                 if (blockedCountry == null)
                     return false;
 
                 if (blockedCountry.BlockExpiryDate.HasValue && blockedCountry.BlockExpiryDate < DateTime.UtcNow)
                 {
-                    // If the block has expired, remove it and return false
-                    _blockedCountryRepository.Delete(blockedCountry);
+                    _unitOfWork.blockedCountryRepository.Delete(blockedCountry);
                     _logger.LogInformation($"Country {countryCode} block has expired and was removed.");
                     return false;
                 }
@@ -115,7 +113,6 @@ namespace BlockedCountriesAPI.Services
             }
             catch (KeyNotFoundException)
             {
-                // If the country isn't found, it is not blocked
                 return false;
             }
         }
@@ -127,14 +124,13 @@ namespace BlockedCountriesAPI.Services
             if (temporarilyBlockCountryRequest.DurationMinutes <= 0)
                 throw new ArgumentException("Duration must be greater than zero.");
 
-            // Check if the country is already temporarily blocked
-            var existingBlockedCountry = _blockedCountryRepository.GetByCountryCode(temporarilyBlockCountryRequest.CountryCode);
+            var existingBlockedCountry = _unitOfWork.blockedCountryRepository.GetByCountryCode(temporarilyBlockCountryRequest.CountryCode);
             if (existingBlockedCountry != null && existingBlockedCountry.BlockExpiryDate > DateTime.UtcNow)
             {
                 throw new InvalidOperationException($"Country {temporarilyBlockCountryRequest.CountryCode} is already temporarily blocked.");
             }
 
-            _blockedCountryRepository.Add(new BlockedCountry
+            _unitOfWork.blockedCountryRepository.Add(new BlockedCountry
             {
                 CountryCode = temporarilyBlockCountryRequest.CountryCode,
                 BlockDate = DateTime.UtcNow,
@@ -143,8 +139,5 @@ namespace BlockedCountriesAPI.Services
 
             _logger.LogInformation($"Country {temporarilyBlockCountryRequest.CountryCode} is temporarily blocked for {temporarilyBlockCountryRequest.DurationMinutes} minutes.");
         }
-
-
-
     }
 }

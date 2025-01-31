@@ -7,8 +7,7 @@ namespace BlockedCountriesAPI.Services
     public class LogService : ILogService
     {
         private readonly ConcurrentQueue<LogEntry> _logs = new();
-        private const int MaxLogEntries = 1000; // تحديد الحد الأقصى لعدد السجلات
-
+        private const int MaxLogEntries = 1000; 
         public void AddLogEntry(LogEntry entry)
         {
             if (entry == null)
